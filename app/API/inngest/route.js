@@ -1,4 +1,4 @@
-// app/API/inngest/route.js
+// app/api/inngest/route.js (NOTE: lowercase 'api' not 'API')
 import {
   inngest,
   syncUserCreation,
