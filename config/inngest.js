@@ -8,17 +8,9 @@ export const inngest = new Inngest({
 });
 
 // Simple test function first - no database operations
-export const testFunction = inngest.createFunction(
-  { id: "test-function" },
-  { event: "test/hello" },
-  async ({ event }) => {
-    console.log("Test function called:", event);
-    return { message: "Hello from Inngest!", data: event.data };
-  }
-);
 
 // Database-dependent functions - commented out initially
-/*
+
 import { connectDb } from "./db";
 import { User } from "@/models/User";
 
@@ -28,7 +20,8 @@ export const syncUserCreation = inngest.createFunction(
   { event: "clerk/user.created" },
   async ({ event }) => {
     try {
-      const { id, first_name, last_name, email_addresses, image_url } = event.data;
+      const { id, first_name, last_name, email_addresses, image_url } =
+        event.data;
 
       const userData = {
         _id: id,
@@ -41,7 +34,7 @@ export const syncUserCreation = inngest.createFunction(
       await connectDb();
       const newUser = await User.create(userData);
       console.log("User created:", newUser._id);
-      
+
       return { success: true, userId: newUser._id };
     } catch (error) {
       console.error("Error in syncUserCreation:", error);
@@ -56,7 +49,8 @@ export const syncUserUpdate = inngest.createFunction(
   { event: "clerk/user.updated" },
   async ({ event }) => {
     try {
-      const { id, first_name, last_name, email_addresses, image_url } = event.data;
+      const { id, first_name, last_name, email_addresses, image_url } =
+        event.data;
 
       const userData = {
         name: `${first_name || ""} ${last_name || ""}`.trim(),
@@ -67,7 +61,7 @@ export const syncUserUpdate = inngest.createFunction(
       await connectDb();
       const updatedUser = await User.updateOne({ _id: id }, { $set: userData });
       console.log("User updated:", id, updatedUser.modifiedCount);
-      
+
       return { success: true, userId: id, modified: updatedUser.modifiedCount };
     } catch (error) {
       console.error("Error in syncUserUpdate:", error);
@@ -87,7 +81,7 @@ export const syncUserDeletion = inngest.createFunction(
       await connectDb();
       const deletedUser = await User.deleteOne({ _id: id });
       console.log("User deleted:", id, deletedUser.deletedCount);
-      
+
       return { success: true, userId: id, deleted: deletedUser.deletedCount };
     } catch (error) {
       console.error("Error in syncUserDeletion:", error);
@@ -95,4 +89,3 @@ export const syncUserDeletion = inngest.createFunction(
     }
   }
 );
-*/
