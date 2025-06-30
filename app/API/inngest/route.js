@@ -1,3 +1,4 @@
+// app/API/inngest/route.js
 import {
   inngest,
   syncUserCreation,
@@ -6,8 +7,8 @@ import {
 } from "@/config/inngest";
 import { serve } from "inngest/next";
 
-// Traditional Pages Router API route
-export default serve({
+// App Router API route - export named HTTP methods
+export const { GET, POST, PUT } = serve({
   client: inngest,
   functions: [syncUserCreation, syncUserUpdate, syncUserDeletion],
 });
