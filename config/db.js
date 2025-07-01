@@ -1,4 +1,4 @@
-import moongoose from "mongoose";
+import mongoose from "mongoose";
 
 let cached = global.mongoose;
 
@@ -10,18 +10,30 @@ export const connectDb = async () => {
   if (cached.conn) {
     return cached.conn;
   }
+
   if (!cached.promise) {
     const opts = {
       bufferCommands: false,
     };
 
-    cached.promise = moongoose
-      .connect(process.env.MongoDB_URI, opts)
+    cached.promise = mongoose
+      .connect(process.env.MONGODB_URI, opts)
       .then((mongoose) => {
+        console.log("MongoDB connected successfully");
         return mongoose;
+      })
+      .catch((error) => {
+        console.error("MongoDB connection error:", error);
+        throw error;
       });
   }
 
-  cached.conn = await cached.promise;
-  return cached.conn;
+  try {
+    cached.conn = await cached.promise;
+    return cached.conn;
+  } catch (error) {
+    // Reset the promise so we can try again
+    cached.promise = null;
+    throw error;
+  }
 };

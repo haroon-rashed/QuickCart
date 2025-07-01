@@ -4,13 +4,11 @@ import { Inngest } from "inngest";
 // Create a client to send and receive events
 export const inngest = new Inngest({
   id: "quickcart-next",
-  eventKey: process.env.INNGEST_EVENT_KEY,
+  name: "QuickCart App", // Add a name property
+  // Remove eventKey - it doesn't exist in Inngest client config
 });
 
-// Simple test function first - no database operations
-
-// Database-dependent functions - commented out initially
-
+// Database-dependent functions
 import { connectDb } from "./db";
 import { User } from "@/models/User";
 
