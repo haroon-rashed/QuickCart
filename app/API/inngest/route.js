@@ -12,5 +12,5 @@ import { serve } from "inngest/next";
 export const { GET, POST, PUT } = serve({
   client: inngest,
   functions: [syncUserCreation, syncUserUpdate, syncUserDeletion],
-  signingKey: process.env.INNGEST_SIGNING_KEY, // Add this line
+  signingKey: process.env.INNGEST_SIGNING_KEY,
 });

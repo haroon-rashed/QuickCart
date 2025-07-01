@@ -4,13 +4,16 @@ import { Inngest } from "inngest";
 // Create a client to send and receive events
 export const inngest = new Inngest({
   id: "quickcart-next",
-  name: "QuickCart App", // Add a name property
-  // Remove eventKey - it doesn't exist in Inngest client config
+  name: "QuickCart App",
 });
 
-// Database-dependent functions
-import { connectDb } from "./db";
-import { User } from "@/models/User";
+// Import database connection and models only when needed
+// This prevents build-time issues
+async function getDbModels() {
+  const { connectDb } = await import("./db");
+  const { User } = await import("@/models/User");
+  return { connectDb, User };
+}
 
 // Inngest function to create user data in the database
 export const syncUserCreation = inngest.createFunction(
@@ -20,6 +23,9 @@ export const syncUserCreation = inngest.createFunction(
     try {
       const { id, first_name, last_name, email_addresses, image_url } =
         event.data;
+
+      // Dynamic import to prevent build-time issues
+      const { connectDb, User } = await getDbModels();
 
       const userData = {
         _id: id,
@@ -36,7 +42,7 @@ export const syncUserCreation = inngest.createFunction(
       return { success: true, userId: newUser._id };
     } catch (error) {
       console.error("Error in syncUserCreation:", error);
-      throw error;
+      return { success: false, error: error.message };
     }
   }
 );
@@ -49,6 +55,9 @@ export const syncUserUpdate = inngest.createFunction(
     try {
       const { id, first_name, last_name, email_addresses, image_url } =
         event.data;
+
+      // Dynamic import to prevent build-time issues
+      const { connectDb, User } = await getDbModels();
 
       const userData = {
         name: `${first_name || ""} ${last_name || ""}`.trim(),
@@ -63,7 +72,7 @@ export const syncUserUpdate = inngest.createFunction(
       return { success: true, userId: id, modified: updatedUser.modifiedCount };
     } catch (error) {
       console.error("Error in syncUserUpdate:", error);
-      throw error;
+      return { success: false, error: error.message };
     }
   }
 );
@@ -76,6 +85,9 @@ export const syncUserDeletion = inngest.createFunction(
     try {
       const { id } = event.data;
 
+      // Dynamic import to prevent build-time issues
+      const { connectDb, User } = await getDbModels();
+
       await connectDb();
       const deletedUser = await User.deleteOne({ _id: id });
       console.log("User deleted:", id, deletedUser.deletedCount);
@@ -83,7 +95,7 @@ export const syncUserDeletion = inngest.createFunction(
       return { success: true, userId: id, deleted: deletedUser.deletedCount };
     } catch (error) {
       console.error("Error in syncUserDeletion:", error);
-      throw error;
+      return { success: false, error: error.message };
     }
   }
 );
