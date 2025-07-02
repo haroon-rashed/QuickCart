@@ -1,4 +1,3 @@
-// models/User.js
 import mongoose from "mongoose";
 
 const UserSchema = new mongoose.Schema(
@@ -15,6 +14,7 @@ const UserSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
+      index: true,
     },
     imageUrl: {
       type: String,
@@ -24,12 +24,16 @@ const UserSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: {},
     },
+    clerkData: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
   },
   {
     timestamps: true,
-    _id: false, // Since we're providing our own _id
+    _id: false, // Using Clerk's ID as _id
   }
 );
 
-// Prevent re-compilation during development
+// Prevent model recompilation in development
 export const User = mongoose.models.User || mongoose.model("User", UserSchema);

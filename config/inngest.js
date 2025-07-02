@@ -1,101 +1,174 @@
-// config/inngest.js
 import { Inngest } from "inngest";
 
-// Create a client to send and receive events
 export const inngest = new Inngest({
   id: "quickcart-next",
   name: "QuickCart App",
+  eventKey: process.env.INNGEST_EVENT_KEY,
 });
 
-// Import database connection and models only when needed
-// This prevents build-time issues
 async function getDbModels() {
   const { connectDb } = await import("./db");
   const { User } = await import("@/models/User");
-  return { connectDb, User };
+
+  try {
+    await connectDb();
+    return { User };
+  } catch (error) {
+    console.error("❌ DB Connection Failed:", error);
+    throw error;
+  }
 }
 
-// Inngest function to create user data in the database
 export const syncUserCreation = inngest.createFunction(
-  { id: "sync-user-creation" },
+  { id: "sync-user-creation", retries: 3 },
   { event: "clerk/user.created" },
   async ({ event }) => {
-    try {
-      const { id, first_name, last_name, email_addresses, image_url } =
-        event.data;
+    console.log("👤 Processing user creation:", event.data.id);
 
-      // Dynamic import to prevent build-time issues
-      const { connectDb, User } = await getDbModels();
+    try {
+      const { User } = await getDbModels();
 
       const userData = {
-        _id: id,
-        name: `${first_name || ""} ${last_name || ""}`.trim(),
-        email: email_addresses?.[0]?.email_address || "",
-        imageUrl: image_url || "",
+        _id: event.data.id,
+        name: `${event.data.first_name || ""} ${
+          event.data.last_name || ""
+        }`.trim(),
+        email: event.data.email_addresses?.[0]?.email_address || null,
+        imageUrl: event.data.image_url || null,
         cartItems: {},
+        clerkData: event.data, // Store complete Clerk data
       };
 
-      await connectDb();
-      const newUser = await User.create(userData);
-      console.log("User created:", newUser._id);
+      console.log("💾 Attempting to save:", {
+        id: userData._id,
+        email: userData.email,
+      });
 
-      return { success: true, userId: newUser._id };
+      const result = await User.findOneAndUpdate(
+        { _id: event.data.id },
+        userData,
+        {
+          upsert: true,
+          new: true,
+          setDefaultsOnInsert: true,
+        }
+      );
+
+      console.log("✅ User saved:", result._id);
+      return { success: true, userId: result._id };
     } catch (error) {
-      console.error("Error in syncUserCreation:", error);
-      return { success: false, error: error.message };
+      console.error("❌ Save failed:", error);
+
+      if (error.code === 11000) {
+        console.log("⚠️ User already exists, updating instead");
+        try {
+          const { User } = await getDbModels();
+          const updated = await User.updateOne(
+            { _id: event.data.id },
+            {
+              $set: {
+                name: `${event.data.first_name || ""} ${
+                  event.data.last_name || ""
+                }`.trim(),
+                imageUrl: event.data.image_url || null,
+              },
+            }
+          );
+          return { success: true, updated: true };
+        } catch (updateError) {
+          console.error("❌ Update failed:", updateError);
+          throw updateError;
+        }
+      }
+
+      throw error;
     }
   }
 );
 
-// Inngest function to update user data in the database
 export const syncUserUpdate = inngest.createFunction(
-  { id: "sync-user-update" },
+  { id: "sync-user-update", retries: 3 },
   { event: "clerk/user.updated" },
   async ({ event }) => {
+    console.log("🔄 Processing user update:", event.data.id);
+
     try {
-      const { id, first_name, last_name, email_addresses, image_url } =
-        event.data;
+      const { User } = await getDbModels();
 
-      // Dynamic import to prevent build-time issues
-      const { connectDb, User } = await getDbModels();
-
-      const userData = {
-        name: `${first_name || ""} ${last_name || ""}`.trim(),
-        email: email_addresses?.[0]?.email_address || "",
-        imageUrl: image_url || "",
+      const updateData = {
+        name: `${event.data.first_name || ""} ${
+          event.data.last_name || ""
+        }`.trim(),
+        email: event.data.email_addresses?.[0]?.email_address || null,
+        imageUrl: event.data.image_url || null,
+        "clerkData.updated": true,
       };
 
-      await connectDb();
-      const updatedUser = await User.updateOne({ _id: id }, { $set: userData });
-      console.log("User updated:", id, updatedUser.modifiedCount);
+      const result = await User.findOneAndUpdate(
+        { _id: event.data.id },
+        updateData,
+        { new: true }
+      );
 
-      return { success: true, userId: id, modified: updatedUser.modifiedCount };
+      if (!result) {
+        console.log("⚠️ User not found, creating new record");
+        return await syncUserCreation({ event });
+      }
+
+      console.log("✅ User updated:", result._id);
+      return { success: true, updated: true };
     } catch (error) {
-      console.error("Error in syncUserUpdate:", error);
-      return { success: false, error: error.message };
+      console.error("❌ Update failed:", error);
+      throw error;
     }
   }
 );
 
-// Inngest function to delete user data from the database
 export const syncUserDeletion = inngest.createFunction(
   { id: "sync-user-deletion" },
   { event: "clerk/user.deleted" },
   async ({ event }) => {
+    console.log("🗑️ Processing user deletion:", event.data.id);
+
     try {
-      const { id } = event.data;
+      const { User } = await getDbModels();
+      const result = await User.deleteOne({ _id: event.data.id });
 
-      // Dynamic import to prevent build-time issues
-      const { connectDb, User } = await getDbModels();
+      if (result.deletedCount === 0) {
+        console.log("⚠️ User not found for deletion");
+        return { success: false, error: "User not found" };
+      }
 
-      await connectDb();
-      const deletedUser = await User.deleteOne({ _id: id });
-      console.log("User deleted:", id, deletedUser.deletedCount);
-
-      return { success: true, userId: id, deleted: deletedUser.deletedCount };
+      console.log("✅ User deleted:", event.data.id);
+      return { success: true, deleted: true };
     } catch (error) {
-      console.error("Error in syncUserDeletion:", error);
+      console.error("❌ Deletion failed:", error);
       return { success: false, error: error.message };
+    }
+  }
+);
+
+// Debug endpoint
+export const debugDB = inngest.createFunction(
+  { id: "debug-db" },
+  { event: "debug/db.check" },
+  async () => {
+    try {
+      const { User } = await getDbModels();
+      const count = await User.countDocuments();
+      return {
+        status: "active",
+        userCount: count,
+        dbStatus: mongoose.connection.readyState,
+        dbHost:
+          process.env.MONGODB_URI?.split("@")[1]?.split("/")[0] || "hidden",
+      };
+    } catch (error) {
+      return {
+        status: "error",
+        error: error.message,
+        dbStatus: mongoose.connection?.readyState || "disconnected",
+      };
     }
   }
 );
